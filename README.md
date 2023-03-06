@@ -34,10 +34,10 @@ Specifies the data layout.
 Specifies the compression for the output. Can be `none` or `gzip`.
 
 ### --start/-s $START
-Specifies the start timestamp for the query. Defaults to `now - 5m`.
+Specifies the start timestamp for the query (layout: `2006-01-02T15:04:05`). Defaults to `now - 5m`.
 
 ### --end/-e $END
-Specifies the end timestamp for the query. Defaults to `now`.
+Specifies the end timestamp for the query (layout: `2006-01-02T15:04:05`). Defaults to `now`.
 
 ### --step/-S $STEP
 Specifies the sample rate for the query. Defaults to `1m`.

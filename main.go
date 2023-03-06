@@ -25,7 +25,7 @@ import (
 	"github.com/sapcc/promdump/compressor"
 	"github.com/sapcc/promdump/model"
 	"github.com/sapcc/promdump/query"
-	"github.com/urfave/cli/v3"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -33,51 +33,48 @@ func main() {
 	app := cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "backend",
-				OnlyOnce: true,
-				Usage:    "http backend to use",
-				Aliases:  []string{"b"},
+				Name:    "backend",
+				Usage:   "http backend to use",
+				Aliases: []string{"b"},
 			},
 			&cli.StringFlag{
-				Name:     "client-cert",
-				OnlyOnce: true,
-				Usage:    "name of client cert to use",
+				Name:  "client-cert",
+				Usage: "name of client cert to use",
 			},
 			&cli.StringFlag{
-				Name:     "format",
-				OnlyOnce: true,
-				Value:    "json",
-				Aliases:  []string{"f"},
+				Name:    "format",
+				Value:   "json",
+				Aliases: []string{"f"},
 			},
 			&cli.StringFlag{
-				Name:     "layout",
-				OnlyOnce: true,
-				Value:    "flat",
-				Aliases:  []string{"l"},
+				Name:    "layout",
+				Value:   "flat",
+				Aliases: []string{"l"},
 			},
 			&cli.StringFlag{
-				Name:     "compress",
-				OnlyOnce: true,
-				Value:    "none",
-				Aliases:  []string{"c"},
+				Name:    "compress",
+				Value:   "none",
+				Aliases: []string{"c"},
 			},
 			&cli.TimestampFlag{
-				Name:     "start",
-				Value:    now.Add(-5 * time.Minute),
-				Aliases:  []string{"s"},
-				OnlyOnce: true,
+				Name:    "start",
+				Value:   cli.NewTimestamp(now.Add(-5 * time.Minute)),
+				Layout:  "2006-01-02T15:04:05",
+				Aliases: []string{"s"},
+				Usage:   "UTC timestamp with layout 2006-01-02T15:04:05",
 			},
 			&cli.TimestampFlag{
-				Name:     "end",
-				Value:    now,
-				Aliases:  []string{"e"},
-				OnlyOnce: true,
+				Name:    "end",
+				Value:   cli.NewTimestamp(now),
+				Aliases: []string{"e"},
+				Layout:  "2006-01-02T15:04:05",
+				Usage:   "UTC timestamp with layout 2006-01-02T15:04:05",
 			},
 			&cli.DurationFlag{
-				Name:     "step",
-				Value:    1 * time.Minute,
-				OnlyOnce: true,
-				Aliases:  []string{"S"},
+				Name:    "step",
+				Value:   1 * time.Minute,
+				Aliases: []string{"S"},
+				Usage:   "Duration according to golangs time.ParseDuration()",
 			},
 		},
 		Name:  "promdump",
@@ -90,7 +87,6 @@ func main() {
 					&cli.StringFlag{
 						Name:     "url",
 						Required: true,
-						OnlyOnce: true,
 						Usage:    "prometheus to query",
 						Aliases:  []string{"u"},
 					},

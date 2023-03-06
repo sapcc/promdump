@@ -6,7 +6,7 @@ require (
 	github.com/andelf/go-curl v0.0.0-20200630032108-fd49ff24ed97
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.37.0
-	github.com/urfave/cli/v3 v3.0.0-alpha2
+	github.com/urfave/cli/v2 v2.25.0
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20221025031416-9877e685ef65
 )
