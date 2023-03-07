@@ -14,6 +14,7 @@ print(df)
 ```
 
 ## Arguments
+Multiple queries can be specified by separating them with a space.
 
 ### --backend/-b $BACKEND
 Specifies the HTTP backend. Can be `curl` or `go`.
@@ -41,6 +42,9 @@ Specifies the end timestamp for the query (layout: `2006-01-02T15:04:05`). Defau
 
 ### --step/-S $STEP
 Specifies the sample rate for the query. Defaults to `1m`.
+
+### --url/-u $URLS
+Specifies the prometheis to query separated by `,`
 
 ## Note on MacOS with client-cert authentification
 You need to enable that curl HTTP backend:

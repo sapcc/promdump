@@ -29,43 +29,43 @@ const (
 	BackendCurl HTTPBackend = "curl"
 )
 
-func MakeHTTPClient(backend HTTPBackend, clientCert string) (http.Client, func()) {
+func MakeHTTPClient(backend HTTPBackend, clientCert string) http.Client {
 	client := http.Client{}
 	if backend == BackendCurl {
 		crt := CurlRoundTripper{ClientCertName: clientCert}
 		client.Transport = &crt
-		return client, crt.Cleanup
+		return client
 	}
 	// golang backend
-	return client, func() {}
+	return client
 }
 
 type CurlRoundTripper struct {
-	easy           *curl.CURL
 	ClientCertName string
 }
 
 func (crt *CurlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if crt.easy == nil {
-		crt.easy = curl.EasyInit()
-	}
-	err := crt.easy.Setopt(curl.OPT_URL, req.URL.String())
+	// this may lead to sigsegv when golang retry logic kicks in
+	defer req.Body.Close()
+	easy := curl.EasyInit()
+	defer easy.Cleanup()
+	err := easy.Setopt(curl.OPT_URL, req.URL.String())
 	if err != nil {
 		return nil, err
 	}
 	switch req.Method {
 	case http.MethodGet:
-		err = crt.easy.Setopt(curl.OPT_HTTPGET, 1)
+		err = easy.Setopt(curl.OPT_HTTPGET, 1)
 		if err != nil {
 			return nil, err
 		}
 	case http.MethodPost:
-		err = crt.easy.Setopt(curl.OPT_POST, 1)
+		err = easy.Setopt(curl.OPT_POST, 1)
 		if err != nil {
 			return nil, err
 		}
 	}
-	err = crt.easy.Setopt(curl.OPT_READFUNCTION,
+	err = easy.Setopt(curl.OPT_READFUNCTION,
 		func(ptr []byte, userdata interface{}) int {
 			written, _ := req.Body.Read(ptr)
 			return written
@@ -74,7 +74,7 @@ func (crt *CurlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		return nil, err
 	}
 	response := bytes.Buffer{}
-	err = crt.easy.Setopt(curl.OPT_WRITEFUNCTION, func(ptr []byte, userdata interface{}) bool {
+	err = easy.Setopt(curl.OPT_WRITEFUNCTION, func(ptr []byte, userdata interface{}) bool {
 		// WARNING: never use append()
 		response.Write(ptr)
 		return true
@@ -83,16 +83,16 @@ func (crt *CurlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		return nil, err
 	}
 	if crt.ClientCertName != "" {
-		err = crt.easy.Setopt(curl.OPT_SSLCERT, crt.ClientCertName)
+		err = easy.Setopt(curl.OPT_SSLCERT, crt.ClientCertName)
 		if err != nil {
 			return nil, err
 		}
 	}
-	err = crt.easy.Setopt(curl.OPT_HEADER, 1)
+	err = easy.Setopt(curl.OPT_HEADER, 1)
 	if err != nil {
 		return nil, err
 	}
-	err = crt.easy.Perform()
+	err = easy.Perform()
 	if err != nil {
 		return nil, err
 	}
@@ -105,10 +105,4 @@ func (crt *CurlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		return nil, err
 	}
 	return res, nil
-}
-
-func (crt *CurlRoundTripper) Cleanup() {
-	if crt.easy != nil {
-		crt.easy.Cleanup()
-	}
 }

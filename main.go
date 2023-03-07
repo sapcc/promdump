@@ -21,6 +21,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/andelf/go-curl"
 	"github.com/sapcc/promdump/client"
 	"github.com/sapcc/promdump/compressor"
 	"github.com/sapcc/promdump/model"
@@ -79,15 +80,27 @@ func main() {
 		},
 		Name:  "promdump",
 		Usage: "Dumps data from a prometheus to stdout",
+		Before: func(ctx *cli.Context) error {
+			if ctx.String("backend") == string(client.BackendCurl) {
+				return curl.GlobalInit(curl.GLOBAL_DEFAULT)
+			}
+			return nil
+		},
+		After: func(ctx *cli.Context) error {
+			if ctx.String("backend") == string(client.BackendCurl) {
+				curl.GlobalCleanup()
+			}
+			return nil
+		},
 		Commands: []*cli.Command{
 			{
 				Name:      "dump",
 				ArgsUsage: "query",
 				Flags: []cli.Flag{
-					&cli.StringFlag{
+					&cli.StringSliceFlag{
 						Name:     "url",
 						Required: true,
-						Usage:    "prometheus to query",
+						Usage:    "prometheis to query",
 						Aliases:  []string{"u"},
 					},
 				},
@@ -96,18 +109,16 @@ func main() {
 						return fmt.Errorf("no query given")
 					}
 					return dump(context.Background(), dumpConfig{
-						promUrl:     ctx.String("url"),
+						promURLs:    ctx.StringSlice("url"),
 						backend:     ctx.String("backend"),
 						clientCert:  ctx.String("client-cert"),
 						format:      ctx.String("format"),
 						layout:      ctx.String("layout"),
 						compression: ctx.String("compress"),
-						query: query.QueryConfig{
-							Query: ctx.Args().First(),
-							Start: *ctx.Timestamp("start"),
-							End:   *ctx.Timestamp("end"),
-							Step:  ctx.Duration("step"),
-						},
+						start:       *ctx.Timestamp("start"),
+						end:         *ctx.Timestamp("end"),
+						step:        ctx.Duration("step"),
+						queries:     ctx.Args().Slice(),
 					})
 				},
 			},
@@ -120,23 +131,35 @@ func main() {
 }
 
 type dumpConfig struct {
-	query       query.QueryConfig
-	promUrl     string
+	queries     []string
+	promURLs    []string
 	backend     string
 	format      string
 	layout      string
 	compression string
 	clientCert  string
+	start       time.Time
+	end         time.Time
+	step        time.Duration
 }
 
 func dump(ctx context.Context, cfg dumpConfig) error {
-	httpClient, cleanup := client.MakeHTTPClient(client.HTTPBackend(cfg.backend), cfg.clientCert)
-	defer cleanup()
-	result, err := query.QueryProm(ctx, cfg.promUrl, cfg.query, &httpClient)
+	httpClient := client.MakeHTTPClient(client.HTTPBackend(cfg.backend), cfg.clientCert)
+	result, err := query.Product(ctx, query.ProductQueryConfig{
+		MultiQueryConfig: query.MultiQueryConfig{
+			Timerange: query.Timerange{
+				Start: cfg.start,
+				End:   cfg.end,
+				Step:  cfg.step,
+			},
+			Queries: cfg.queries,
+		},
+		URLs: cfg.promURLs,
+	}, &httpClient)
 	if err != nil {
 		return err
 	}
-	marshaled, err := model.Marshal(result, model.Layout(cfg.layout), model.Format(cfg.format))
+	marshaled, err := model.MarshalSlice(result, model.Layout(cfg.layout), model.Format(cfg.format))
 	if err != nil {
 		return err
 	}

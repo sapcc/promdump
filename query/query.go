@@ -15,6 +15,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,14 +26,18 @@ import (
 	prommodel "github.com/prometheus/common/model"
 )
 
-type QueryConfig struct {
-	Query string
+type Timerange struct {
 	Start time.Time
 	End   time.Time
 	Step  time.Duration
 }
 
-func QueryProm(ctx context.Context, url string, query QueryConfig, httpClient *http.Client) (prommodel.Value, error) {
+type QueryConfig struct {
+	Timerange
+	Query string
+}
+
+func Single(ctx context.Context, url string, query QueryConfig, httpClient *http.Client) (prommodel.Value, error) {
 	cfg := api.Config{
 		Address: url,
 		Client:  httpClient,
@@ -54,4 +59,63 @@ func QueryProm(ctx context.Context, url string, query QueryConfig, httpClient *h
 		fmt.Fprintf(os.Stderr, "Prometheus API warning: %s\n", warn)
 	}
 	return result, nil
+}
+
+type MultiQueryConfig struct {
+	Timerange
+	Queries []string
+}
+
+func Multi(ctx context.Context, url string, query MultiQueryConfig, httpClient *http.Client) ([]prommodel.Value, error) {
+	results := make([]prommodel.Value, 0)
+	for _, queryStr := range query.Queries {
+		cfg := QueryConfig{Query: queryStr}
+		cfg.Timerange = query.Timerange
+		result, err := Single(ctx, url, cfg, httpClient)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+type ProductQueryConfig struct {
+	MultiQueryConfig
+	URLs []string
+}
+
+type multiResult struct {
+	Values []prommodel.Value
+	Err    error
+}
+
+func Product(ctx context.Context, query ProductQueryConfig, httpClient *http.Client) ([]prommodel.Value, error) {
+	expected := len(query.URLs)
+	resultChan := make(chan multiResult)
+	for i := range query.URLs {
+		url := query.URLs[i]
+		go func() {
+			values, err := Multi(ctx, url, query.MultiQueryConfig, httpClient)
+			resultChan <- multiResult{Values: values, Err: err}
+		}()
+	}
+	errs := make([]error, 0)
+	values := make([]prommodel.Value, 0)
+	counter := 0
+	for result := range resultChan {
+		if result.Err != nil {
+			errs = append(errs, result.Err)
+		} else {
+			values = append(values, result.Values...)
+		}
+		counter++
+		if counter == expected {
+			close(resultChan)
+		}
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	return values, nil
 }
