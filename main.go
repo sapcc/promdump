@@ -136,7 +136,7 @@ func dump(ctx context.Context, cfg dumpConfig) error {
 	if err != nil {
 		return err
 	}
-	marshaled, err := model.Marshal(result, model.LayoutFlat, model.Format(cfg.format))
+	marshaled, err := model.Marshal(result, model.Layout(cfg.layout), model.Format(cfg.format))
 	if err != nil {
 		return err
 	}

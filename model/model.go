@@ -38,8 +38,8 @@ type Marshaler interface {
 	AsParquet() ([]byte, error)
 }
 
-func Marshal(value model.Value, layout Layout, format Format) ([]byte, error) {
-	marshaler, err := AsMarshaler(value, layout)
+func MarshalSlice(values []model.Value, layout Layout, format Format) ([]byte, error) {
+	marshaler, err := AsMarshalerSlice(values, layout)
 	if err != nil {
 		return nil, err
 	}
@@ -52,25 +52,45 @@ func Marshal(value model.Value, layout Layout, format Format) ([]byte, error) {
 	return nil, fmt.Errorf("unknown format: %s", layout)
 }
 
-func AsMarshaler(value model.Value, layout Layout) (Marshaler, error) {
+func Marshal(value model.Value, layout Layout, format Format) ([]byte, error) {
+	return MarshalSlice([]model.Value{value}, layout, format)
+}
+
+func AsMarshalerSlice(values []model.Value, layout Layout) (Marshaler, error) {
 	switch layout {
 	case LayoutRaw:
-		return &WrappedValue{value: value}, nil
+		if len(values) == 1 {
+			return &WrappedValue{value: values[0]}, nil
+		} else {
+			return &WrappedValueSlice{values: values}, nil
+		}
 	case LayoutNested:
-		dumps, err := ValueToSampleDumps(value)
-		if err != nil {
-			return nil, err
+		dumps := make(SampleDumps, 0)
+		for _, value := range values {
+			current, err := ValueToSampleDumps(value)
+			if err != nil {
+				return nil, err
+			}
+			dumps = append(dumps, current...)
 		}
 		return &dumps, nil
 	case LayoutFlat:
-		dumps, err := ValueToSampleDumps(value)
-		if err != nil {
-			return nil, err
+		dumps := make(SampleDumps, 0)
+		for _, value := range values {
+			current, err := ValueToSampleDumps(value)
+			if err != nil {
+				return nil, err
+			}
+			dumps = append(dumps, current...)
 		}
-		flattened := FlattenDumps(dumps)
-		return &flattened, nil
+		flattend := FlattenDumps(dumps)
+		return &flattend, nil
 	}
 	return nil, fmt.Errorf("unknown layout: %s", layout)
+}
+
+func AsMarshaler(value model.Value, layout Layout) (Marshaler, error) {
+	return AsMarshalerSlice([]model.Value{value}, layout)
 }
 
 type WrappedValue struct {
@@ -82,6 +102,18 @@ func (val *WrappedValue) AsJSON() ([]byte, error) {
 }
 
 func (val *WrappedValue) AsParquet() ([]byte, error) {
+	return nil, fmt.Errorf("serializing raw prometheus values to parquet is not supported")
+}
+
+type WrappedValueSlice struct {
+	values []model.Value
+}
+
+func (wvs *WrappedValueSlice) AsJSON() ([]byte, error) {
+	return json.Marshal(wvs.values)
+}
+
+func (wvs *WrappedValueSlice) AsParquet() ([]byte, error) {
 	return nil, fmt.Errorf("serializing raw prometheus values to parquet is not supported")
 }
 
