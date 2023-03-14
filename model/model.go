@@ -118,10 +118,10 @@ func (wvs *WrappedValueSlice) AsParquet() ([]byte, error) {
 }
 
 type SampleDump struct {
-	Metric    string         `json:"metric" parquet:"name=metric, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	Metric    string         `json:"metric" parquet:"name=metric, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_BYTE_ARRAY"`
 	Labels    model.LabelSet `json:"labels" parquet:"name=labels, type=MAP, convertedtype=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
-	Timestamp int64          `json:"timestamp" parquet:"name=timestamp, type=INT64"`
-	Value     float64        `json:"value" parquet:"name=timestamp, type=DOUBLE"`
+	Timestamp int64          `json:"timestamp" parquet:"name=timestamp, type=INT64, encoding=DELTA_BINARY_PACKED"`
+	Value     float64        `json:"value" parquet:"name=value, type=DOUBLE"`
 }
 
 type SampleDumps []SampleDump
@@ -171,19 +171,21 @@ func (dumps *SampleDumps) AsParquet() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-type FlattenedSampleDump map[string]any
+type FlattenedSampleDump struct {
+	Data map[string]any `json:"data" parquet:"name=data, type=MAP, convertedtype=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
+}
 
 type FlattenedSampleDumps []FlattenedSampleDump
 
 func FlattenDump(dump *SampleDump) FlattenedSampleDump {
-	m := make(FlattenedSampleDump)
+	m := make(map[string]any)
 	m["metric"] = dump.Metric
 	m["timestamp"] = dump.Timestamp
 	m["value"] = dump.Value
 	for key, val := range dump.Labels {
 		m[string(key)] = val
 	}
-	return m
+	return FlattenedSampleDump{Data: m}
 }
 
 func FlattenDumps(dumps SampleDumps) FlattenedSampleDumps {
@@ -195,24 +197,33 @@ func FlattenDumps(dumps SampleDumps) FlattenedSampleDumps {
 }
 
 func (flattened *FlattenedSampleDumps) AsJSON() ([]byte, error) {
-	return json.Marshal(flattened)
+	unpacked := make([]map[string]any, 0)
+	for _, single := range *flattened {
+		unpacked = append(unpacked, single.Data)
+	}
+	return json.Marshal(unpacked)
 }
 
 func (flattened *FlattenedSampleDumps) AsParquet() ([]byte, error) {
 	buf := buffer.NewBufferFile()
-	writer, err := writer.NewParquetWriter(buf, new(FlattenedSampleDump), 1)
+	first := (*flattened)[0]
+	schema, err := ParquetSchemaFor(first.Data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create parquet schema: %w", err)
+	}
+	writer, err := writer.NewParquetWriter(buf, schema, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize parquet writer: %w", err)
 	}
 	for _, dump := range *flattened {
 		err = writer.Write(dump)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to write parquet entry: %w", err)
 		}
 	}
 	err = writer.WriteStop()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to write parquet footer: %w", err)
 	}
 	return buf.Bytes(), nil
 }
