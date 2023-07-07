@@ -58,6 +58,18 @@ func Single(ctx context.Context, url string, query QueryConfig, httpClient *http
 	for _, warn := range warns {
 		fmt.Fprintf(os.Stderr, "Prometheus API warning: %s\n", warn)
 	}
+	// semi-stupid hack to get a __name__ label into results of more complex expressions
+	// where prometheus omits it.
+	matrix, ok := result.(prommodel.Matrix)
+	if !ok {
+		return result, fmt.Errorf("query result is not a matrix for: %s", query.Query)
+	}
+	for _, stream := range matrix {
+		_, hasName := stream.Metric[prommodel.MetricNameLabel]
+		if !hasName {
+			stream.Metric[prommodel.MetricNameLabel] = prommodel.LabelValue(query.Query)
+		}
+	}
 	return result, nil
 }
 
