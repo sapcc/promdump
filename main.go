@@ -29,6 +29,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var version string
+
 func main() {
 	now := time.Now()
 	app := cli.App{
@@ -121,6 +123,15 @@ func main() {
 						queries:     ctx.Args().Slice(),
 					})
 				},
+				Usage: "Dumps data from a prometheus to stdout",
+			},
+			{
+				Name: "version",
+				Action: func(ctx *cli.Context) error {
+					fmt.Fprintf(ctx.App.Writer, "%s\n", version)
+					return nil
+				},
+				Usage: "Prints the version",
 			},
 		},
 	}
