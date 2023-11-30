@@ -21,7 +21,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/andelf/go-curl"
+	"github.com/ilmari-lauhakangas/go-curl"
 	"github.com/sapcc/promdump/client"
 	"github.com/sapcc/promdump/compressor"
 	"github.com/sapcc/promdump/model"

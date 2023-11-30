@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/andelf/go-curl"
+	"github.com/ilmari-lauhakangas/go-curl"
 )
 
 type HTTPBackend string

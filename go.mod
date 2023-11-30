@@ -3,9 +3,9 @@ module github.com/sapcc/promdump
 go 1.20
 
 require (
-	github.com/andelf/go-curl v0.0.0-20200630032108-fd49ff24ed97
-	github.com/prometheus/client_golang v1.16.0
-	github.com/prometheus/common v0.44.0
+	github.com/ilmari-lauhakangas/go-curl v0.0.0-20230406090606-b7e07afa015b // reviewed fork of github.com/andelf/go-curl, since it broke for curl v8 at leat on MacOS
+	github.com/prometheus/client_golang v1.17.0
+	github.com/prometheus/common v0.45.0
 	github.com/urfave/cli/v2 v2.25.7
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20230607234618-40034c8066df
