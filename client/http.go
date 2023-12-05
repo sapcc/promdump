@@ -46,7 +46,9 @@ type CurlRoundTripper struct {
 
 func (crt *CurlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	// this may lead to sigsegv when golang retry logic kicks in
-	defer req.Body.Close()
+	if req.Body != nil {
+		defer req.Body.Close()
+	}
 	easy := curl.EasyInit()
 	defer easy.Cleanup()
 	err := easy.Setopt(curl.OPT_URL, req.URL.String())

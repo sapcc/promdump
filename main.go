@@ -16,9 +16,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/ilmari-lauhakangas/go-curl"
@@ -32,6 +34,8 @@ import (
 var version string
 
 func main() {
+	signalCtx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 	now := time.Now()
 	app := cli.App{
 		Flags: []cli.Flag{
@@ -81,7 +85,7 @@ func main() {
 			},
 		},
 		Name:  "promdump",
-		Usage: "Dumps data from a prometheus to stdout",
+		Usage: "Dumps data from prometheis",
 		Before: func(ctx *cli.Context) error {
 			if ctx.String("backend") == string(client.BackendCurl) {
 				return curl.GlobalInit(curl.GLOBAL_DEFAULT)
@@ -97,7 +101,7 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:      "dump",
-				ArgsUsage: "query",
+				ArgsUsage: "query all given prometheis",
 				Flags: []cli.Flag{
 					&cli.StringSliceFlag{
 						Name:     "url",
@@ -110,7 +114,7 @@ func main() {
 					if !ctx.Args().Present() {
 						return fmt.Errorf("no query given")
 					}
-					return dump(context.Background(), dumpConfig{
+					return dump(signalCtx, dumpConfig{
 						promURLs:    ctx.StringSlice("url"),
 						backend:     ctx.String("backend"),
 						clientCert:  ctx.String("client-cert"),
@@ -124,6 +128,22 @@ func main() {
 					})
 				},
 				Usage: "Dumps data from a prometheus to stdout",
+			},
+			{
+				Name:      "metrics",
+				ArgsUsage: "prometheus url",
+				Action: func(ctx *cli.Context) error {
+					if !ctx.Args().Present() {
+						return fmt.Errorf("no prometheus given")
+					}
+					return metrics(signalCtx, metricsConfig{
+						backend:    ctx.String("backend"),
+						clientCert: ctx.String("client-cert"),
+						promURL:    ctx.Args().First(),
+					})
+
+				},
+				Usage: "Dumps available metrics and their labels to stdout",
 			},
 			{
 				Name: "version",
@@ -179,5 +199,25 @@ func dump(ctx context.Context, cfg dumpConfig) error {
 		return err
 	}
 	_, err = io.Copy(os.Stdout, bytes.NewBuffer(compressed))
+	return err
+}
+
+type metricsConfig struct {
+	backend    string
+	promURL    string
+	clientCert string
+}
+
+func metrics(ctx context.Context, cfg metricsConfig) error {
+	httpClient := client.MakeHTTPClient(client.HTTPBackend(cfg.backend), cfg.clientCert)
+	metrics, err := query.MetricsWithLabels(ctx, cfg.promURL, &httpClient)
+	if err != nil {
+		return err
+	}
+	marshaled, err := json.Marshal(metrics)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(os.Stdout, bytes.NewBuffer(marshaled))
 	return err
 }
