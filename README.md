@@ -13,6 +13,11 @@ df = pd.read_json("query.json", orient="records")
 print(df)
 ```
 
+To get available metrics and their labels as JSON of a prometheus run
+```sh
+promdump metrics $PROM_URL
+```
+
 ## Arguments
 Multiple queries can be specified by separating them with a space.
 
